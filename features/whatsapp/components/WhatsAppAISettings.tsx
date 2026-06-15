@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useBranding } from '@/context/BrandingContext';
 import { useToast } from '@/context/ToastContext';
+import { useBoards } from '@/lib/query/hooks/useBoardsQuery';
 
 export function WhatsAppAISettings() {
   const { branding } = useBranding();
@@ -38,6 +39,7 @@ export function WhatsAppAISettings() {
   const updateConfig = useUpdateWhatsAppAIConfig();
   const updateInstance = useUpdateWhatsAppInstance();
   const { showToast } = useToast();
+  const { data: boards } = useBoards();
 
   const [form, setForm] = useState({
     agent_name: '',
@@ -56,6 +58,7 @@ export function WhatsAppAISettings() {
     outside_hours_message: '',
     auto_create_contact: true,
     auto_create_deal: false,
+    default_board_id: '' as string,
     // Intelligence features
     memory_enabled: true,
     follow_up_enabled: true,
@@ -92,6 +95,7 @@ export function WhatsAppAISettings() {
         outside_hours_message: config.outside_hours_message ?? '',
         auto_create_contact: config.auto_create_contact ?? true,
         auto_create_deal: config.auto_create_deal ?? false,
+        default_board_id: config.default_board_id ?? '',
         // Intelligence features
         memory_enabled: config.memory_enabled ?? true,
         follow_up_enabled: config.follow_up_enabled ?? true,
@@ -118,6 +122,7 @@ export function WhatsAppAISettings() {
         ...form,
         working_hours_start: form.working_hours_start || null,
         working_hours_end: form.working_hours_end || null,
+        default_board_id: form.default_board_id || null,
       },
       {
         onSuccess: () => showToast('Configurações do agente salvas!', 'success'),
@@ -433,6 +438,28 @@ export function WhatsAppAISettings() {
                 Criar negócio automaticamente para novos contatos
               </span>
             </label>
+
+            {form.auto_create_deal && (
+              <div className="ml-7 space-y-1.5">
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
+                  Funil padrão (onde a IA cria e move o negócio)
+                </label>
+                <select
+                  value={form.default_board_id}
+                  onChange={(e) => setForm({ ...form, default_board_id: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-white/10 bg-white dark:bg-dark-bg text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                >
+                  <option value="">Selecione um funil…</option>
+                  {(boards ?? []).map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-500">
+                  A IA move o negócio para o estágio com o mesmo nome da etiqueta (ex: Quente,
+                  Negociando, Interessado). Crie os estágios do funil com os nomes das etiquetas.
+                </p>
+              </div>
+            )}
           </section>
 
           {/* Intelligence Features */}

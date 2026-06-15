@@ -707,6 +707,67 @@ async function autoCreateDeal(
   });
 }
 
+/**
+ * Mirror the AI's classification into the Kanban: move the contact's open deal
+ * to the pipeline stage whose name matches the currently-assigned label.
+ *
+ * The user models their board stages with the same names as the WhatsApp labels
+ * (Frio, Morno, Interessado, Negociando, Quente, ...). The first assigned label
+ * that maps to a stage in the configured board wins (the AI lists the primary
+ * label first). No-op when nothing maps.
+ */
+async function syncDealToLabelStage(
+  supabase: SupabaseClient,
+  conversation: WhatsAppConversation,
+  contactId: string,
+  config: WhatsAppAIConfig,
+  suggestedLabels: string[],
+): Promise<void> {
+  if (!config.auto_create_deal || !config.default_board_id || suggestedLabels.length === 0) return;
+
+  const { data: stages } = await supabase
+    .from('board_stages')
+    .select('id, name, label, order')
+    .eq('board_id', config.default_board_id)
+    .order('order', { ascending: true });
+  if (!stages || stages.length === 0) return;
+
+  const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+
+  let targetStageId: string | null = null;
+  for (const label of suggestedLabels) {
+    const wanted = norm(label);
+    const match = stages.find(
+      (st) => norm(st.label as string | null) === wanted || norm(st.name as string | null) === wanted,
+    );
+    if (match) {
+      targetStageId = match.id as string;
+      break;
+    }
+  }
+  if (!targetStageId) return; // no assigned label maps to a stage in this board
+
+  const { data: deal } = await supabase
+    .from('deals')
+    .select('id, stage_id')
+    .eq('contact_id', contactId)
+    .eq('board_id', config.default_board_id)
+    .eq('is_won', false)
+    .eq('is_lost', false)
+    .maybeSingle();
+  if (!deal || deal.stage_id === targetStageId) return;
+
+  await supabase.from('deals').update({ stage_id: targetStageId }).eq('id', deal.id);
+
+  await insertAILog(supabase, {
+    conversation_id: conversation.id,
+    organization_id: conversation.organization_id,
+    action: 'stage_changed',
+    details: { deal_id: deal.id, from_stage_id: deal.stage_id, to_stage_id: targetStageId },
+    triggered_by: 'ai',
+  });
+}
+
 // =============================================================================
 // MAIN ENTRY POINT
 // =============================================================================
@@ -964,6 +1025,13 @@ async function _executeAIAfterBatch(ctx: AIAgentContext, conversation: WhatsAppC
           });
         }
       }
+    }
+
+    // 3b. Mirror the assigned label into the Kanban: move the contact's deal to
+    // the pipeline stage whose name matches the current label (runs after the
+    // labels are assigned above).
+    if (contactId) {
+      await syncDealToLabelStage(supabase, conversation, contactId, config, intelligence.suggested_labels);
     }
 
     // 4. Follow-ups are scheduled AFTER the AI reply (see below)
