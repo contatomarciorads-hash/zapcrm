@@ -732,7 +732,10 @@ async function syncDealToLabelStage(
     .order('order', { ascending: true });
   if (!stages || stages.length === 0) return;
 
-  const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+  // Accent- and case-insensitive so a stage named "Objecao" still matches the
+  // "Objeção" label (and vice-versa).
+  const norm = (s: string | null | undefined) =>
+    (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase();
 
   let targetStageId: string | null = null;
   for (const label of suggestedLabels) {
