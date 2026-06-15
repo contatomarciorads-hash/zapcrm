@@ -233,22 +233,24 @@ export async function getMessages(
   conversationId: string,
   options?: { limit?: number; before?: string },
 ): Promise<WhatsAppMessage[]> {
+  // Fetch the MOST RECENT messages: order descending + limit, then reverse to
+  // chronological order for display. Ordering ascending + limit (the previous
+  // behavior) returned the OLDEST N, so on active conversations new messages
+  // fell outside the window and never showed in the thread.
   let query = supabase
     .from('whatsapp_messages')
     .select('*')
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true });
+    .order('created_at', { ascending: false });
 
   if (options?.before) {
     query = query.lt('created_at', options.before);
   }
-  if (options?.limit) {
-    query = query.limit(options.limit);
-  }
+  query = query.limit(options?.limit ?? 100);
 
   const { data, error } = await query;
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).reverse();
 }
 
 export async function insertMessage(
