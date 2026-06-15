@@ -45,11 +45,33 @@ export function MessageThread({ conversation, onToggleIntelligence, showIntellig
   const [text, setText] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pinnedToBottomRef = useRef(true);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll to bottom
+  // Track whether the user is parked at the bottom of the thread.
+  const handleScroll = () => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    pinnedToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+  };
+
+  // On opening a conversation, jump straight to the newest message (instant).
+  // The delayed re-scroll accounts for media (audio/images) that load afterwards
+  // and grow the thread, which would otherwise leave the view stuck mid-thread.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    pinnedToBottomRef.current = true;
+    messagesEndRef.current?.scrollIntoView({ behavior: 'auto' });
+    const t = setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'auto' }), 300);
+    return () => clearTimeout(t);
+  }, [conversation.id]);
+
+  // Follow new messages only when the user is already at the bottom, so reading
+  // history (and the periodic polling refetch) doesn't yank the view down.
+  useEffect(() => {
+    if (pinnedToBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   // Supabase Realtime subscription for live message updates
@@ -220,7 +242,11 @@ export function MessageThread({ conversation, onToggleIntelligence, showIntellig
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-1">
+      <div
+        ref={scrollContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto px-4 py-4 space-y-1"
+      >
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="w-6 h-6 text-primary-500 animate-spin" />
