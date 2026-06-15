@@ -6,7 +6,7 @@ import { MessageThread } from './components/MessageThread';
 import { WhatsAppSetup } from './components/WhatsAppSetup';
 import { WhatsAppAISettings } from './components/WhatsAppAISettings';
 import { IntelligencePanel } from './components/IntelligencePanel';
-import { useStartWhatsAppConversation, useWhatsAppInstances } from '@/lib/query/whatsapp';
+import { useStartWhatsAppConversation, useWhatsAppInstances, useWhatsAppConversations } from '@/lib/query/whatsapp';
 import type { WhatsAppConversation } from '@/types/whatsapp';
 import {
   ArrowLeft,
@@ -45,6 +45,25 @@ export function WhatsAppPage() {
       setSelectedConversation(null);
     }
   }, [selectedConversation, selectedInstanceId]);
+
+  // Keep the selected conversation in sync with the live list. It's stored as a
+  // snapshot taken on click, so toggling the AI (ai_active), new messages, or
+  // unread changes wouldn't reflect in the header/panel until a manual refresh.
+  const { data: liveConversations } = useWhatsAppConversations(
+    selectedInstanceId ? { instanceId: selectedInstanceId } : undefined,
+  );
+  useEffect(() => {
+    if (!selectedConversation || !liveConversations) return;
+    const fresh = liveConversations.find((c) => c.id === selectedConversation.id);
+    if (
+      fresh &&
+      (fresh.ai_active !== selectedConversation.ai_active ||
+        fresh.last_message_at !== selectedConversation.last_message_at ||
+        fresh.unread_count !== selectedConversation.unread_count)
+    ) {
+      setSelectedConversation(fresh);
+    }
+  }, [liveConversations, selectedConversation]);
 
   const hasInstances = Boolean(instances && instances.length > 0);
   const selectedInstance = instances?.find((instance) => instance.id === selectedInstanceId) || null;
