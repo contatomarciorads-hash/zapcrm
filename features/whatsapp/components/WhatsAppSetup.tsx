@@ -82,7 +82,7 @@ function QRCodePanel({ instanceId, onClose }: { instanceId: string; onClose: () 
             <>
               <div className="bg-white p-4 rounded-xl mb-4">
                 <img
-                  src={`data:image/png;base64,${qrData.value}`}
+                  src={qrData.value.startsWith('data:') ? qrData.value : `data:image/png;base64,${qrData.value}`}
                   alt="QR Code WhatsApp"
                   className="w-64 h-64"
                 />

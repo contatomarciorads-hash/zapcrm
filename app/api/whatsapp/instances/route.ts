@@ -139,11 +139,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Falha ao criar instância na Evolution API.' }, { status: 502 });
   }
 
+  // Evolution API v2 returns `hash` either as the apikey string directly
+  // (v2.3+) or as an object `{ apikey }` (older builds). Handle both so the
+  // per-instance token is persisted instead of staying as 'pending'.
+  const instanceApiKey =
+    typeof (evoResult.hash as unknown) === 'string'
+      ? (evoResult.hash as unknown as string)
+      : evoResult.hash?.apikey;
+
   const { data: updatedInstance } = await ctx.supabase
     .from('whatsapp_instances')
     .update({
       instance_id: evoResult.instance.instanceId,
-      instance_token: evoResult.hash.apikey,
+      instance_token: instanceApiKey,
       webhook_url: webhookUrl,
       updated_at: new Date().toISOString(),
     })
@@ -153,7 +161,7 @@ export async function POST(request: Request) {
 
   const instanceCreds: evolution.EvolutionCredentials = {
     baseUrl,
-    apiKey: evoResult.hash.apikey,
+    apiKey: instanceApiKey,
     instanceName,
   };
 
