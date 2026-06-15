@@ -143,7 +143,12 @@ export function useWhatsAppConversations(options?: {
   return useQuery({
     queryKey: queryKeys.whatsappConversations.list(options ?? {}),
     queryFn: () => fetchJson<WhatsAppConversation[]>(`/api/whatsapp/conversations${qs ? `?${qs}` : ''}`),
-    staleTime: 30 * 1000,
+    staleTime: 10 * 1000,
+    // Polling fallback: Supabase Realtime drives instant updates, but it can drop
+    // (RLS/websocket/quota). Refetch periodically so the list stays fresh even
+    // if a realtime event is missed. Only runs while the tab is focused.
+    refetchInterval: 12 * 1000,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -171,7 +176,12 @@ export function useWhatsAppMessages(conversationId: string | undefined) {
     queryKey: queryKeys.whatsappMessages.byConversation(conversationId ?? ''),
     queryFn: () => fetchJson<WhatsAppMessage[]>(`/api/whatsapp/conversations/${conversationId}/messages`),
     enabled: !!conversationId,
-    staleTime: 10 * 1000,
+    staleTime: 5 * 1000,
+    // Polling fallback for the open conversation (see useWhatsAppConversations).
+    // Realtime still delivers instantly when it works; this guarantees the thread
+    // updates within a few seconds even if a realtime event is missed.
+    refetchInterval: 5 * 1000,
+    refetchOnWindowFocus: true,
   });
 }
 
