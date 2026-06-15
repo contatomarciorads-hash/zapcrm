@@ -98,7 +98,11 @@ async function validateApiKey(provider: string, apiKey: string, model: string): 
                 headers: {
                     'Content-Type': 'application/json',
                     'x-api-key': apiKey,
-                    'anthropic-version': '2023-06-01'
+                    'anthropic-version': '2023-06-01',
+                    // Anthropic blocks direct browser calls (CORS) unless this opt-in
+                    // header is present; without it the fetch throws and surfaces as
+                    // a generic "connection error".
+                    'anthropic-dangerous-direct-browser-access': 'true'
                 },
                 body: JSON.stringify({
                     model: model,
