@@ -327,19 +327,25 @@ function MessageBubble({ message }: { message: WhatsAppMessage }) {
 }
 
 function MessageContent({ message }: { message: WhatsAppMessage }) {
+  // WhatsApp media URLs are encrypted (`.enc`) and can't be rendered directly.
+  // Stream the decrypted bytes through our proxy endpoint instead.
+  const mediaSrc = message.evolution_message_id
+    ? `/api/whatsapp/messages/${message.id}/media`
+    : message.media_url;
+
   switch (message.message_type) {
     case 'text':
       return <p className="text-sm whitespace-pre-wrap break-words">{message.text_body}</p>;
     case 'image':
       return (
         <div>
-          {message.media_url && (
-            <img src={message.media_url} alt="Imagem" className="rounded-xl max-w-full mb-1" />
+          {mediaSrc && (
+            <img src={mediaSrc} alt="Imagem" className="rounded-xl max-w-full mb-1" />
           )}
           {message.media_caption && (
             <p className="text-sm">{message.media_caption}</p>
           )}
-          {!message.media_url && (
+          {!mediaSrc && (
             <div className="flex items-center gap-2 text-sm text-slate-500">
               <ImageIcon className="w-4 h-4" />
               Imagem
@@ -351,9 +357,9 @@ function MessageContent({ message }: { message: WhatsAppMessage }) {
       return (
         <div className="flex items-center gap-2 text-sm text-slate-500">
           <Mic className="w-4 h-4" />
-          {message.media_url ? (
+          {mediaSrc ? (
             <audio controls className="max-w-[200px]">
-              <source src={message.media_url} />
+              <source src={mediaSrc} type={message.media_mime_type || undefined} />
             </audio>
           ) : (
             'Mensagem de voz'
@@ -375,8 +381,8 @@ function MessageContent({ message }: { message: WhatsAppMessage }) {
         </div>
       );
     case 'sticker':
-      return message.media_url ? (
-        <img src={message.media_url} alt="Sticker" className="w-24 h-24" />
+      return mediaSrc ? (
+        <img src={mediaSrc} alt="Sticker" className="w-24 h-24" />
       ) : (
         <span className="text-sm text-slate-500">Figurinha</span>
       );

@@ -127,28 +127,44 @@ async function handleMessageUpsert(
 ) {
   const { key, pushName, message, messageTimestamp } = payload.data;
 
-  // Skip messages sent by ourselves
-  if (key.fromMe) return;
-
   // Skip group messages (group JIDs end with @g.us)
   if (key.remoteJid.endsWith('@g.us')) return;
 
   // Skip status broadcast messages
   if (key.remoteJid === 'status@broadcast') return;
 
+  // `fromMe` = the operator sent this message (from the phone, WhatsApp Web,
+  // another linked device, or the CRM itself). We persist these too so the
+  // thread shows both sides — previously they were dropped, which made every
+  // conversation look half-empty.
+  const fromMe = key.fromMe === true;
+
   const organizationId = instance.organization_id as string;
   const instanceDbId = instance.id as string;
+
+  // Dedupe: the same evolution_message_id can arrive more than once (repeated
+  // upserts, or a CRM-sent message the send route already stored). Skip if seen.
+  if (key.id) {
+    const { data: existing } = await supabase
+      .from('whatsapp_messages')
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('evolution_message_id', key.id)
+      .maybeSingle();
+    if (existing) return;
+  }
 
   // Extract phone number from remoteJid (strip @s.whatsapp.net or @g.us suffix)
   const phone = key.remoteJid.replace(/@s\.whatsapp\.net$/, '').replace(/@g\.us$/, '');
 
-  // Get or create conversation
+  // Get or create conversation. For `fromMe`, pushName is the operator's own
+  // name, not the contact's — don't use it as the contact name.
   const conversation = await getOrCreateConversation(
     supabase,
     organizationId,
     instanceDbId,
     phone,
-    pushName,
+    fromMe ? undefined : pushName,
     undefined, // contactPhoto — not provided by Evolution API in message payloads
     false,
   );
@@ -167,8 +183,8 @@ async function handleMessageUpsert(
     conversation_id: conversation.id,
     organization_id: organizationId,
     evolution_message_id: key.id,
-    from_me: false,
-    sender_name: pushName,
+    from_me: fromMe,
+    sender_name: fromMe ? undefined : pushName,
     message_type: messageType,
     text_body: textBody,
     media_url: mediaUrl,
@@ -177,19 +193,23 @@ async function handleMessageUpsert(
     media_caption: mediaCaption,
     latitude,
     longitude,
-    status: 'received',
+    status: fromMe ? 'sent' : 'received',
     whatsapp_timestamp: whatsappTimestamp,
   } as Parameters<typeof insertMessage>[1]);
 
-  // Update conversation metadata so the list reflects the new message
+  // Update conversation metadata so the list reflects the new message.
+  // Operator (fromMe) messages don't bump the unread counter.
   const previewText = textBody || mediaCaption || (messageType !== 'text' ? `[${messageType}]` : '');
   await updateConversation(supabase, conversation.id, {
     last_message_text: previewText.slice(0, 255),
     last_message_at: whatsappTimestamp,
-    last_message_from_me: false,
-    unread_count: (conversation.unread_count ?? 0) + 1,
+    last_message_from_me: fromMe,
+    unread_count: fromMe ? (conversation.unread_count ?? 0) : (conversation.unread_count ?? 0) + 1,
     status: 'open',
   } as Parameters<typeof updateConversation>[2]);
+
+  // Operator-sent messages never trigger the AI agent.
+  if (fromMe) return;
 
   // Check if AI agent should process this message
   const aiEnabled = instance.ai_enabled as boolean;
