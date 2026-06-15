@@ -19,6 +19,7 @@ import {
   Brain,
 } from 'lucide-react';
 import { useBranding } from '@/context/BrandingContext';
+import { useToast } from '@/context/ToastContext';
 
 export function WhatsAppAISettings() {
   const { branding } = useBranding();
@@ -36,6 +37,7 @@ export function WhatsAppAISettings() {
   const { data: config, isLoading } = useWhatsAppAIConfig(selectedInstanceId ?? undefined);
   const updateConfig = useUpdateWhatsAppAIConfig();
   const updateInstance = useUpdateWhatsAppInstance();
+  const { showToast } = useToast();
 
   const [form, setForm] = useState({
     agent_name: '',
@@ -110,12 +112,19 @@ export function WhatsAppAISettings() {
 
   const handleSave = () => {
     if (!selectedInstanceId) return;
-    updateConfig.mutate({
-      instanceId: selectedInstanceId,
-      ...form,
-      working_hours_start: form.working_hours_start || null,
-      working_hours_end: form.working_hours_end || null,
-    });
+    updateConfig.mutate(
+      {
+        instanceId: selectedInstanceId,
+        ...form,
+        working_hours_start: form.working_hours_start || null,
+        working_hours_end: form.working_hours_end || null,
+      },
+      {
+        onSuccess: () => showToast('Configurações do agente salvas!', 'success'),
+        onError: (err) =>
+          showToast(err instanceof Error ? err.message : 'Falha ao salvar configurações', 'error'),
+      },
+    );
   };
 
   const toggleAI = () => {
