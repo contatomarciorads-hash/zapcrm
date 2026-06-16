@@ -1417,6 +1417,32 @@ export function createCRMTools(context: CRMCallOptions, userId: string) {
             }),
             needsApproval: !bypassApproval,
             execute: async ({ name, email, phone, role, companyName, notes, status, stage, source }) => {
+                // Never create org-less orphan contacts (they leak across tenants
+                // and show up as duplicates).
+                if (!organizationId) {
+                    return { error: 'Não foi possível identificar a organização para criar o contato.' };
+                }
+                // Dedupe by phone (digits only) within the org to avoid duplicates
+                // of contacts created by the WhatsApp agent / imports.
+                if (phone) {
+                    const digits = phone.replace(/\D/g, '');
+                    if (digits) {
+                        const { data: candidates } = await supabase
+                            .from('contacts')
+                            .select('id, name, phone')
+                            .eq('organization_id', organizationId);
+                        const existing = (candidates ?? []).find(
+                            (c) => ((c.phone as string | null) ?? '').replace(/\D/g, '') === digits,
+                        );
+                        if (existing) {
+                            return {
+                                success: true,
+                                contact: existing,
+                                message: `Contato "${existing.name}" já existe (reaproveitado).`,
+                            };
+                        }
+                    }
+                }
                 const { data, error } = await supabase
                     .from('contacts')
                     .insert({
