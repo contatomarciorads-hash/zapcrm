@@ -141,7 +141,7 @@ const DashboardPage: React.FC = () => {
         />
         <StatCard
           title="Receita (Ganha)"
-          value={`$${wonRevenue.toLocaleString()}`}
+          value={`R$ ${wonRevenue.toLocaleString('pt-BR')}`}
           subtext=""
           icon={TrendingUp}
           color="bg-orange-500"
@@ -200,11 +200,11 @@ const DashboardPage: React.FC = () => {
             </h3>
             <div className="flex items-end gap-2">
               <span className="text-2xl font-bold text-slate-900 dark:text-white">
-                ${avgTicket.toLocaleString()}
+                R$ {avgTicket.toLocaleString('pt-BR')}
               </span>
               <span className="text-xs text-green-500 font-bold mb-1">Médio</span>
             </div>
-            <p className="text-xs text-slate-500 mt-2">Valor médio baseado nas reservas (Receita / Reservas Feitas).</p>
+            <p className="text-xs text-slate-500 mt-2">Valor médio dos negócios ganhos (Receita ÷ Negócios Ganhos).</p>
           </div>
         </div>
       </div>
@@ -214,7 +214,7 @@ const DashboardPage: React.FC = () => {
         <div className="glass p-5 rounded-xl border border-slate-200 dark:border-white/5 shadow-sm flex flex-col h-full w-full max-w-4xl mx-auto">
           <div className="flex justify-between items-center mb-2 shrink-0">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white font-display">
-              Funil de Vendas & Reservas
+              Funil de Vendas
             </h2>
           </div>
           <div className="flex-1 min-h-0 relative">
